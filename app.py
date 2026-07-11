@@ -11,7 +11,7 @@ st.set_page_config(layout="wide")
 st.title("✈️ 실시간 한반도 상공 비행기 추적 대시보드")
 st.markdown("OpenSky Network API와 Pydeck을 활용하여 대한민국 상공의 실시간 비행 데이터를 시각화합니다.")
 
-# --- [4-3] 사이드바 UI 구성 ---
+# --- [사이드바 UI 구성] ---
 st.sidebar.title("🎮 관제탑 컨트롤러")
 
 if st.sidebar.button("🔄 즉시 새로고침"):
@@ -64,14 +64,13 @@ def get_opensky_data():
         return None
 
 # --- [3] 데이터 로딩 및 화면 그리기 ---
-# [3-3] 데이터를 불러오는 동안 로딩 스피너 애니메이션을 보여줍니다.
 with st.spinner("🚀 실시간 한반도 하늘에서 비행기 정보를 수신하는 중..."):
     df_planes = get_opensky_data()
 
 if df_planes is not None:
     if not df_planes.empty:
         
-        # 고도 z-score 계산 (하위 16% 저공비행 탐지용)
+        # 고도 z-score 계산 (통계학적 하위 0.15% 극단적 저공비행 탐지용)
         mean_alt = df_planes['baro_altitude'].mean()
         std_alt = df_planes['baro_altitude'].std()
         df_planes['zscore_altitude'] = (df_planes['baro_altitude'] - mean_alt) / std_alt if std_alt > 0 else 0
@@ -81,22 +80,6 @@ if df_planes is not None:
         df_planes['plane_icon'] = '^'
         df_planes['icon_angle'] = df_planes['true_track']
         
-        # [1-4] 상승/하강/순항 상태에 따른 rgb 색상 코드 생성
-        def determine_color(row):
-            # 수직 속도가 비어있으면 순항으로 판단
-            vr = row['vertical_rate'] if pd.notna(row['vertical_rate']) else 0
-            
-            if row['zscore_altitude'] <= -1:
-                return [255, 0, 0, 220]      # 🔴 위험 고도 (저공비행: 빨간색)
-            elif vr > 0.5:
-                return [46, 204, 113, 220]   # 🟢 상승 중 (초록색)
-            elif vr < -0.5:
-                return [155, 89, 182, 220]   # 🟣 하강 중 (보라색)
-            else:
-                return [30, 144, 255, 220]   # 🔵 평온하게 순항 중 (파란색)
-                
-        df_planes['color'] = df_planes.apply(determine_color, axis=1)
-        
         # 상단 대시보드 메트릭
         st.metric(label="현재 관제 구역 내 비행기 수", value=f"{len(df_planes)} 대")
         
@@ -104,7 +87,7 @@ if df_planes is not None:
         
         with col1:
             st.subheader("🗺️ 실시간 디지털 관제 지도")
-            st.caption("🟢 상승 | 🟣 하강 | 🔵 순항 | 🔴 저공비행")
+            st.caption("🔵 일반 비행 | 🔴 특별 저공비행 (z-score -3 이하)")
             
             view_state = pdk.ViewState(
                 latitude=36.0,
@@ -113,7 +96,7 @@ if df_planes is not None:
                 pitch=0
             )
             
-            # 비행기 표시 레이어
+            # 비행기 표시 레이어 (지정해주신 핵심 조건만 깔끔하게 적용!)
             layers = [
                 pdk.Layer(
                     "TextLayer",
@@ -123,13 +106,14 @@ if df_planes is not None:
                     get_size=35,
                     font_weight="'bold'",
                     get_angle="icon_angle",
-                    get_color="color", # 위에서 계산한 동적 색상 적용!
+                    # 고도 z-score가 -3 이하이면 빨간색[255, 0, 0], 그 외엔 모두 깔끔한 파란색[30, 144, 255]
+                    get_color="zscore_altitude <= -3 ? [255, 0, 0, 220] : [30, 144, 255, 220]", 
                     pickable=True,
                     opacity=1.0
                 )
             ]
             
-            # [2-4] 주요 공항 표시 기능 활성화 시 레이어 추가
+            # 주요 공항 표시 기능 활성화 시 레이어 추가
             if show_airports:
                 airports_data = [
                     {"name": "인천국제공항 (ICN)", "lng": 126.4392, "lat": 37.4692},
@@ -144,7 +128,7 @@ if df_planes is not None:
                     "ScatterplotLayer",
                     df_airports,
                     get_position="[lng, lat]",
-                    get_color="[241, 196, 15, 250]", # 노란색
+                    get_color="[241, 196, 15, 250]", 
                     get_radius=8000,
                     pickable=True
                 )
@@ -155,21 +139,21 @@ if df_planes is not None:
                     get_position="[lng, lat]",
                     get_text="name",
                     get_size=13,
-                    get_color="[255, 255, 255, 255]", # 흰색 글자
+                    get_color="[255, 255, 255, 255]", 
                     get_alignment_baseline="'top'",
-                    get_pixel_offset=[0, 15] # 점과 글자가 겹치지 않게 아래로 살짝 내림
+                    get_pixel_offset=[0, 15] 
                 )
                 layers.extend([airport_spots, airport_labels])
             
             st.pydeck_chart(pdk.Deck(
                 layers=layers,
                 initial_view_state=view_state,
-                tooltip={"html": "<b>편명:</b> {callsign}<br><b>국적:</b> {origin_country}<br><b>방향:</b> {true_track} 도<br><b>고도:</b> {baro_altitude} m<br><b>수직속도:</b> {vertical_rate} m/s"}
+                tooltip={"html": "<b>편명:</b> {callsign}<br><b>국적:</b> {origin_country}<br><b>방향:</b> {true_track} 도<br><b>고도:</b> {baro_altitude} m<br><b>고도 z-score:</b> {zscore_altitude}"}
             ))
             
         with col2:
             st.subheader("📊 상세 데이터 표")
-            display_cols = ["callsign", "origin_country", "true_track", "baro_altitude", "vertical_rate", "velocity"]
+            display_cols = ["callsign", "origin_country", "true_track", "baro_altitude", "zscore_altitude", "velocity"]
             st.dataframe(df_planes[display_cols], use_container_width=True, height=480)
             
     else:
