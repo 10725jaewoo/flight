@@ -87,7 +87,6 @@ if df_planes is not None:
         
         with col1:
             st.subheader("🗺️ 실시간 디지털 관제 지도")
-            # 기준 설명을 다시 -3 이하로 정확하게 수정했습니다.
             st.caption("🔵 일반 비행 | 🔴 특별 저공비행 (z-score <= -3.0)")
             
             view_state = pdk.ViewState(
@@ -97,7 +96,7 @@ if df_planes is not None:
                 pitch=0
             )
             
-            # 비행기 표시 레이어 (z-score 기준 수치 -3.0 복원 완료!)
+            # 비행기 표시 레이어 (z-score 기준 -3.0 고정)
             layers = [
                 pdk.Layer(
                     "TextLayer",
@@ -107,7 +106,7 @@ if df_planes is not None:
                     get_size=35,
                     font_weight="'bold'",
                     get_angle="icon_angle",
-                    # 고도 z-score가 -3.0 이하일 때만 완벽하게 빨간색[255, 0, 0]으로 표시합니다.
+                    # 정확히 z-score가 -3 이하일 때만 빨간색, 평소에는 파란색으로 매핑
                     get_color="zscore_altitude <= -3.0 ? [255, 0, 0, 220] : [30, 144, 255, 220]", 
                     pickable=True,
                     opacity=1.0
@@ -116,11 +115,12 @@ if df_planes is not None:
             
             # 주요 공항 표시 기능 활성화 시 레이어 추가
             if show_airports:
+                # 폰트 깨짐 및 Missing character 오류를 방지하기 위해 순수 영문(ASCII 기호) 코드로 전면 수정!
                 airports_data = [
-                    {"name": "인천국제공항 (ICN)", "lng": 126.4392, "lat": 37.4692},
-                    {"name": "김포국제공항 (GMP)", "lng": 126.8026, "lat": 37.5583},
-                    {"name": "김해국제공항 (PUS)", "lng": 128.9387, "lat": 35.1795},
-                    {"name": "제주국제공항 (CJU)", "lng": 126.4930, "lat": 33.5113}
+                    {"name": "ICN", "lng": 126.4392, "lat": 37.4692},
+                    {"name": "GMP", "lng": 126.8026, "lat": 37.5583},
+                    {"name": "PUS", "lng": 128.9387, "lat": 35.1795},
+                    {"name": "CJU", "lng": 126.4930, "lat": 33.5113}
                 ]
                 df_airports = pd.DataFrame(airports_data)
                 
@@ -133,25 +133,25 @@ if df_planes is not None:
                     get_radius=8000,
                     pickable=True
                 )
-                # 공항 이름 텍스트 레이어 (절대 깨지지 않는 시스템 내장 폰트 유지)
+                # 공항 코드 텍스트 레이어 (영어 대문자만 사용하므로 브라우저 에러가 원천 차단됩니다)
                 airport_labels = pdk.Layer(
                     "TextLayer",
                     df_airports,
                     get_position="[lng, lat]",
                     get_text="name",
-                    get_size=12,
+                    get_size=14,
                     get_color="[255, 255, 255, 255]", 
                     font_weight="'bold'",
-                    font_family="-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', helvetica, sans-serif",
                     get_alignment_baseline="'top'",
                     get_pixel_offset=[0, 15] 
                 )
                 layers.extend([airport_spots, airport_labels])
             
+            # 툴팁 HTML 내부의 한글을 영어로 변경하여 지도 컴포넌트와의 충돌을 막아줍니다.
             st.pydeck_chart(pdk.Deck(
                 layers=layers,
                 initial_view_state=view_state,
-                tooltip={"html": "<b>편명:</b> {callsign}<br><b>국적:</b> {origin_country}<br><b>방향:</b> {true_track}°<br><b>고도:</b> {baro_altitude} m<br><b>고도 z-score:</b> {zscore_altitude}"}
+                tooltip={"html": "<b>Callsign:</b> {callsign}<br><b>Country:</b> {origin_country}<br><b>Heading:</b> {true_track}°<br><b>Altitude:</b> {baro_altitude} m<br><b>z-score:</b> {zscore_altitude}"}
             ))
             
         with col2:
