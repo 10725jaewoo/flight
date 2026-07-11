@@ -96,7 +96,7 @@ if df_planes is not None:
                 pitch=0
             )
             
-            # 비행기 표시 레이어 (지정해주신 핵심 조건만 깔끔하게 적용!)
+            # 비행기 표시 레이어
             layers = [
                 pdk.Layer(
                     "TextLayer",
@@ -106,7 +106,6 @@ if df_planes is not None:
                     get_size=35,
                     font_weight="'bold'",
                     get_angle="icon_angle",
-                    # 고도 z-score가 -3 이하이면 빨간색[255, 0, 0], 그 외엔 모두 깔끔한 파란색[30, 144, 255]
                     get_color="zscore_altitude <= -3 ? [255, 0, 0, 220] : [30, 144, 255, 220]", 
                     pickable=True,
                     opacity=1.0
@@ -132,7 +131,7 @@ if df_planes is not None:
                     get_radius=8000,
                     pickable=True
                 )
-                # 공항 이름 텍스트 레이어
+                # 공항 이름 텍스트 레이어 (한글 폰트 세팅이 추가되었습니다)
                 airport_labels = pdk.Layer(
                     "TextLayer",
                     df_airports,
@@ -140,6 +139,7 @@ if df_planes is not None:
                     get_text="name",
                     get_size=13,
                     get_color="[255, 255, 255, 255]", 
+                    font_family="'Noto Sans KR', sans-serif", # 한글 지원 폰트 적용!
                     get_alignment_baseline="'top'",
                     get_pixel_offset=[0, 15] 
                 )
