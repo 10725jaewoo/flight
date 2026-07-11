@@ -8,17 +8,17 @@ from requests.exceptions import RequestException
 # --- [1] 기본 웹앱 화면 설정 ---
 st.set_page_config(layout="wide")
 
-st.title("✈️ Real-time Flight Tracker (South Korea)")
-st.markdown("Visualizing real-time flight data over the Korean Peninsula using OpenSky Network API and Pydeck.")
+st.title("✈️ 실시간 한반도 상공 비행기 추적 대시보드")
+st.markdown("OpenSky Network API와 Pydeck을 활용하여 대한민국 상공의 실시간 비행 데이터를 시각화합니다.")
 
 # --- [사이드바 UI 구성] ---
-st.sidebar.title("🎮 Control Panel")
+st.sidebar.title("🎮 관제탑 컨트롤러")
 
-if st.sidebar.button("🔄 Refresh Data"):
+if st.sidebar.button("🔄 즉시 새로고침"):
     st.rerun()
 
-auto_refresh = st.sidebar.checkbox("⏱️ Auto Refresh (10s)", value=False)
-show_airports = st.sidebar.checkbox("📌 Show Major Airports", value=True)
+auto_refresh = st.sidebar.checkbox("⏱️ 10초마다 자동 새로고침 켜기", value=False)
+show_airports = st.sidebar.checkbox("📌 주요 공항 위치 표시하기", value=True)
 
 # --- [2] 데이터를 가져오는 함수 정의하기 ---
 def get_opensky_data():
@@ -60,17 +60,17 @@ def get_opensky_data():
             return pd.DataFrame()
             
     except RequestException as e:
-        st.error(f"API Error: {e}")
+        st.error(f"API 호출 중 오류 발생: {e}")
         return None
 
 # --- [3] 데이터 로딩 및 화면 그리기 ---
-with st.spinner("🚀 Fetching live flight data from OpenSky Network..."):
+with st.spinner("🚀 실시간 한반도 하늘에서 비행기 정보를 수신하는 중..."):
     df_planes = get_opensky_data()
 
 if df_planes is not None:
     if not df_planes.empty:
         
-        # 고도 z-score 계산
+        # 고도 z-score 계산 (하위 16% 저공비행 탐지용)
         mean_alt = df_planes['baro_altitude'].mean()
         std_alt = df_planes['baro_altitude'].std()
         df_planes['zscore_altitude'] = (df_planes['baro_altitude'] - mean_alt) / std_alt if std_alt > 0 else 0
@@ -81,14 +81,13 @@ if df_planes is not None:
         df_planes['icon_angle'] = df_planes['true_track']
         
         # 상단 대시보드 메트릭
-        st.metric(label="Flights in Airspace", value=f"{len(df_planes)} AC")
+        st.metric(label="현재 관제 구역 내 비행기 수", value=f"{len(df_planes)} 대")
         
         col1, col2 = st.columns([3, 2])
         
         with col1:
-            st.subheader("🗺️ Live Radar Map")
-            # 영문으로 캡션을 교체하여 한글 폰트 에러를 완전히 지웁니다.
-            st.caption("🔵 Normal Altitude | 🔴 Low Altitude (z-score <= -1.0)")
+            st.subheader("🗺️ 실시간 디지털 관제 지도")
+            st.caption("🔵 일반 비행 | 🔴 특별 저공비행 (z-score <= -1.0)")
             
             view_state = pdk.ViewState(
                 latitude=36.0,
@@ -97,7 +96,7 @@ if df_planes is not None:
                 pitch=0
             )
             
-            # 비행기 표시 레이어 (테스트를 위해 z-score 기준을 -1.0으로 낮췄어!)
+            # 비행기 표시 레이어
             layers = [
                 pdk.Layer(
                     "TextLayer",
@@ -107,23 +106,24 @@ if df_planes is not None:
                     get_size=35,
                     font_weight="'bold'",
                     get_angle="icon_angle",
-                    # 고도 z-score가 -1.0 이하(낮은 고도)이면 빨간색, 평범하면 파란색
                     get_color="zscore_altitude <= -1.0 ? [255, 0, 0, 220] : [30, 144, 255, 220]", 
                     pickable=True,
                     opacity=1.0
                 )
             ]
             
-            # 주요 공항 표시 기능
+            # 주요 공항 표시 기능 활성화 시 레이어 추가
             if show_airports:
+                # 공항 이름을 다시 직관적인 한글로 원상복구 했습니다!
                 airports_data = [
-                    {"name": "Incheon Airport (ICN)", "lng": 126.4392, "lat": 37.4692},
-                    {"name": "Gimpo Airport (GMP)", "lng": 126.8026, "lat": 37.5583},
-                    {"name": "Gimhae Airport (PUS)", "lng": 128.9387, "lat": 35.1795},
-                    {"name": "Jeju Airport (CJU)", "lng": 126.4930, "lat": 33.5113}
+                    {"name": "인천국제공항 (ICN)", "lng": 126.4392, "lat": 37.4692},
+                    {"name": "김포국제공항 (GMP)", "lng": 126.8026, "lat": 37.5583},
+                    {"name": "김해국제공항 (PUS)", "lng": 128.9387, "lat": 35.1795},
+                    {"name": "제주국제공항 (CJU)", "lng": 126.4930, "lat": 33.5113}
                 ]
                 df_airports = pd.DataFrame(airports_data)
                 
+                # 공항 노란색 점 레이어
                 airport_spots = pdk.Layer(
                     "ScatterplotLayer",
                     df_airports,
@@ -132,6 +132,7 @@ if df_planes is not None:
                     get_radius=8000,
                     pickable=True
                 )
+                # 공항 이름 텍스트 레이어 (절대 깨지지 않는 시스템 내장 폰트 시스템 적용!)
                 airport_labels = pdk.Layer(
                     "TextLayer",
                     df_airports,
@@ -139,25 +140,26 @@ if df_planes is not None:
                     get_text="name",
                     get_size=12,
                     get_color="[255, 255, 255, 255]", 
+                    font_weight="'bold'",
+                    font_family="-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', helvetica, sans-serif",
                     get_alignment_baseline="'top'",
                     get_pixel_offset=[0, 15] 
                 )
                 layers.extend([airport_spots, airport_labels])
             
-            # 툴팁 가이드를 영문으로 매핑하여 인코딩 오류를 방지합니다.
             st.pydeck_chart(pdk.Deck(
                 layers=layers,
                 initial_view_state=view_state,
-                tooltip={"html": "<b>Callsign:</b> {callsign}<br><b>Country:</b> {origin_country}<br><b>Track:</b> {true_track}°<br><b>Altitude:</b> {baro_altitude} m<br><b>z-score:</b> {zscore_altitude}"}
+                tooltip={"html": "<b>편명:</b> {callsign}<br><b>국적:</b> {origin_country}<br><b>방향:</b> {true_track}°<br><b>고도:</b> {baro_altitude} m<br><b>고도 z-score:</b> {zscore_altitude}"}
             ))
             
         with col2:
-            st.subheader("📊 Flight Data Table")
+            st.subheader("📊 상세 데이터 표")
             display_cols = ["callsign", "origin_country", "true_track", "baro_altitude", "zscore_altitude", "velocity"]
             st.dataframe(df_planes[display_cols], use_container_width=True, height=480)
             
     else:
-        st.info("No aircraft detected in this area.")
+        st.info("현재 해당 구역 상공에 탐지된 비행기가 없습니다.")
 
 # --- [4] 자동 새로고침 실행 ---
 if auto_refresh:
