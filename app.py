@@ -17,8 +17,9 @@ if st.button("🔄 실시간 데이터 새로고침"):
 
 # --- [2] 데이터를 가져오는 함수 정의하기 ---
 def get_opensky_data():
-    client_id = st.secrets["opensky"]["client_id"]
-    client_secret = st.secrets["opensky"]["client_secret"]
+    # 금고(st.secrets) 대신 발급받은 키를 직접 입력합니다 (하드코딩).
+    client_id = "10725jaewoo-api-client"
+    client_secret = "xNlSQVEJF4zJGaAD53YZs6sHEzG2v1WX"
     
     token_url = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
     token_data = {
@@ -84,7 +85,6 @@ if df_planes is not None:
         col1, col2 = st.columns([3, 2])
         
         with col1:
-            # 제목도 현재 기준에 맞게 살짝 수정했어요!
             st.subheader("🗺️ 실시간 위치 지도 (빨간 점: 하위 16% 저공비행)")
             
             # 지도의 중심점(대한민국 중심)과 줌 레벨을 설정합니다.
