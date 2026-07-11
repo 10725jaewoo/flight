@@ -71,16 +71,14 @@ if df_planes is not None:
         # 고도 z-score 계산 (하위 16% 저공비행 탐지용)
         mean_alt = df_planes['baro_altitude'].mean()
         std_alt = df_planes['baro_altitude'].std()
-        # 모든 비행기 고도가 같아 표준편차가 0일 때 발생하는 오류 방지
         if std_alt > 0:
             df_planes['zscore_altitude'] = (df_planes['baro_altitude'] - mean_alt) / std_alt
         else:
             df_planes['zscore_altitude'] = 0
         
-        # [기능 1-1 에러 수정] 텍스트 레이어 글꼴 에러 방지를 위해 기본 기호(^) 사용
+        # 화살표 기호(^) 각도 설정
         df_planes['true_track'] = df_planes['true_track'].fillna(0)
         df_planes['plane_icon'] = '^'
-        # ^ 모양 기호는 처음부터 0도(북쪽)를 바라보고 있으므로 빼기 계산 없이 각도를 그대로 적용합니다.
         df_planes['icon_angle'] = df_planes['true_track']
         
         st.metric(label="현재 한반도 상공 비행기 수", value=f"{len(df_planes)} 대")
@@ -97,13 +95,14 @@ if df_planes is not None:
                 pitch=0
             )
             
-            # TextLayer를 활용하여 비행기 방향을 화살표 기호(^)로 시각화
+            # TextLayer 옵션 튜닝 완료!
             layer = pdk.Layer(
                 "TextLayer",
                 df_planes,
                 get_position="[longitude, latitude]",
                 get_text="plane_icon",
-                get_size=20,
+                get_size=40,               # 크기를 20에서 40으로 두 배 키웠어!
+                font_weight="'bold'",      # 글자를 두껍게 만드는 굵은 폰트(Bold) 설정 추가!
                 get_angle="icon_angle",
                 get_color="zscore_altitude <= -1 ? [255, 0, 0, 200] : [30, 144, 255, 200]", 
                 pickable=True,
