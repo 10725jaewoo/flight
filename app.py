@@ -17,7 +17,6 @@ st.sidebar.title("🎮 관제탑 컨트롤러")
 if st.sidebar.button("🔄 즉시 새로고침"):
     st.rerun()
 
-# 익명 모드에서는 너무 잦은 새로고침 시 서버가 차단하므로 주의 메시지를 띄웁니다.
 auto_refresh = st.sidebar.checkbox("⏱️ 10초마다 자동 새로고침 켜기", value=False)
 if auto_refresh:
     st.sidebar.warning("⚠️ 익명 모드에서는 너무 자주 새로고침하면 서버가 일시적으로 차단할 수 있습니다.")
@@ -26,16 +25,12 @@ show_airports = st.sidebar.checkbox("📌 주요 공항 위치 표시하기", va
 
 # --- [2] 데이터를 가져오는 함수 정의하기 ---
 def get_opensky_data():
-    # 🌟 [보안 업데이트] 아이디, 비밀번호, 토큰 발급 코드를 싹 다 지우고 익명 접속으로 변경!
     try:
-        # 익명 전용 OpenSky API 주소 (인증서 헤더가 필요 없습니다)
         api_url = "https://opensky-network.org/api/states/all"
         params = {"lamin": 33.0, "lomin": 124.0, "lamax": 39.0, "lomax": 132.0}
         
-        # 바로 데이터 요청하기
         data_response = requests.get(api_url, params=params, timeout=30)
         
-        # 만약 너무 자주 요청해서 차단당했다면 친절하게 안내창 띄우기
         if data_response.status_code == 429:
             st.error("🛑 OpenSky 서버가 너무 바쁩니다! (익명 요청 횟수 초과) 1~2분 뒤에 새로고침 해주세요.")
             return pd.DataFrame()
@@ -94,23 +89,25 @@ if df_planes is not None:
                 pitch=0
             )
             
-            # 비행기 표시 레이어
-            layers = [
-                pdk.Layer(
-                    "TextLayer",
-                    df_planes,
-                    get_position="[longitude, latitude]",
-                    get_text="plane_icon",
-                    get_size=35,
-                    font_weight="'bold'",
-                    get_angle="icon_angle",
-                    get_color="zscore_altitude <= -3.0 ? [255, 0, 0, 220] : [30, 144, 255, 220]", 
-                    pickable=True,
-                    opacity=1.0
-                )
-            ]
+            # 1. 기본 비행기 레이어 생성 (이름을 고유하게 지정)
+            plane_layer = pdk.Layer(
+                "TextLayer",
+                df_planes,
+                id="planes-layer",
+                get_position="[longitude, latitude]",
+                get_text="plane_icon",
+                get_size=35,
+                font_weight="'bold'",
+                get_angle="icon_angle",
+                get_color="zscore_altitude <= -3.0 ? [255, 0, 0, 220] : [30, 144, 255, 220]", 
+                pickable=True,
+                opacity=1.0
+            )
             
-            # 주요 공항 표시 기능
+            # 최종 지도에 올릴 레이어 리스트 초기화 (처음엔 비행기만 넣음)
+            final_layers = [plane_layer]
+            
+            # 2. [체크박스 버그 수정] show_airports가 True일 때만 공항 레이어를 리스트에 추가합니다.
             if show_airports:
                 airports_data = [
                     {"name": "ICN", "lng": 126.4392, "lat": 37.4692},
@@ -120,17 +117,21 @@ if df_planes is not None:
                 ]
                 df_airports = pd.DataFrame(airports_data)
                 
+                # 경고 로그를 없애기 위해 getColor 대신 최신 문법인 get_fill_color 사용
                 airport_spots = pdk.Layer(
                     "ScatterplotLayer",
                     df_airports,
+                    id="airport-spots-layer",
                     get_position="[lng, lat]",
-                    get_color="[241, 196, 15, 250]", 
+                    get_fill_color="[241, 196, 15, 250]", 
                     get_radius=8000,
                     pickable=True
                 )
+                
                 airport_labels = pdk.Layer(
                     "TextLayer",
                     df_airports,
+                    id="airport-labels-layer",
                     get_position="[lng, lat]",
                     get_text="name",
                     get_size=14,
@@ -139,10 +140,13 @@ if df_planes is not None:
                     get_alignment_baseline="'top'",
                     get_pixel_offset=[0, 15] 
                 )
-                layers.extend([airport_spots, airport_labels])
+                
+                # 체크박스가 켜져있을 때만 레이어 리스트에 병합
+                final_layers.extend([airport_spots, airport_labels])
             
+            # 최종 필터링된 final_layers를 Deck에 전달
             st.pydeck_chart(pdk.Deck(
-                layers=layers,
+                layers=final_layers,
                 initial_view_state=view_state,
                 tooltip={"html": "<b>Callsign:</b> {callsign}<br><b>Country:</b> {origin_country}<br><b>Heading:</b> {true_track}°<br><b>Altitude:</b> {baro_altitude} m<br><b>z-score:</b> {zscore_altitude}"}
             ))
