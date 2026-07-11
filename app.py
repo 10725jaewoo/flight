@@ -114,11 +114,12 @@ if df_planes is not None:
             
             # 주요 공항 표시 기능 활성화 시 레이어 추가
             if show_airports:
+                # 폰트 깨짐 예방을 위해 완벽한 영문 이름으로 데이터를 변경했습니다!
                 airports_data = [
-                    {"name": "인천국제공항 (ICN)", "lng": 126.4392, "lat": 37.4692},
-                    {"name": "김포국제공항 (GMP)", "lng": 126.8026, "lat": 37.5583},
-                    {"name": "김해국제공항 (PUS)", "lng": 128.9387, "lat": 35.1795},
-                    {"name": "제주국제공항 (CJU)", "lng": 126.4930, "lat": 33.5113}
+                    {"name": "Incheon Airport (ICN)", "lng": 126.4392, "lat": 37.4692},
+                    {"name": "Gimpo Airport (GMP)", "lng": 126.8026, "lat": 37.5583},
+                    {"name": "Gimhae Airport (PUS)", "lng": 128.9387, "lat": 35.1795},
+                    {"name": "Jeju Airport (CJU)", "lng": 126.4930, "lat": 33.5113}
                 ]
                 df_airports = pd.DataFrame(airports_data)
                 
@@ -131,15 +132,14 @@ if df_planes is not None:
                     get_radius=8000,
                     pickable=True
                 )
-                # 공항 이름 텍스트 레이어 (한글 폰트 세팅이 추가되었습니다)
+                # 공항 이름 텍스트 레이어 (표준 ASCII 코드를 사용해 에러를 원천 차단합니다)
                 airport_labels = pdk.Layer(
                     "TextLayer",
                     df_airports,
                     get_position="[lng, lat]",
                     get_text="name",
-                    get_size=13,
+                    get_size=12,
                     get_color="[255, 255, 255, 255]", 
-                    font_family="'Noto Sans KR', sans-serif", # 한글 지원 폰트 적용!
                     get_alignment_baseline="'top'",
                     get_pixel_offset=[0, 15] 
                 )
@@ -148,7 +148,7 @@ if df_planes is not None:
             st.pydeck_chart(pdk.Deck(
                 layers=layers,
                 initial_view_state=view_state,
-                tooltip={"html": "<b>편명:</b> {callsign}<br><b>국적:</b> {origin_country}<br><b>방향:</b> {true_track} 도<br><b>고도:</b> {baro_altitude} m<br><b>고도 z-score:</b> {zscore_altitude}"}
+                tooltip={"html": "<b>Callsign:</b> {callsign}<br><b>Country:</b> {origin_country}<br><b>Track:</b> {true_track}°<br><b>Altitude:</b> {baro_altitude} m<br><b>z-score:</b> {zscore_altitude}"}
             ))
             
         with col2:
