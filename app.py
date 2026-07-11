@@ -11,13 +11,12 @@ st.set_page_config(layout="wide")
 st.title("✈️ 실시간 한반도 상공 비행기 추적 대시보드")
 st.markdown("OpenSky Network API와 Pydeck을 활용하여 대한민국 상공의 실시간 비행 데이터를 시각화합니다.")
 
-# [기능 3-4] 자동 새로고침 스위치 만들기
+# [기능 3-4] 자동 새로고침 스위치 설정
 col_btn1, col_btn2 = st.columns([1, 4])
 with col_btn1:
     if st.button("🔄 즉시 새로고침"):
         st.rerun()
 with col_btn2:
-    # 체크박스를 켜면 auto_refresh 변수가 True가 됩니다.
     auto_refresh = st.checkbox("⏱️ 10초마다 자동 새로고침 켜기")
 
 # --- [2] 데이터를 가져오는 함수 정의하기 ---
@@ -69,18 +68,20 @@ df_planes = get_opensky_data()
 if df_planes is not None:
     if not df_planes.empty:
         
-        # 고도 z-score 계산
+        # 고도 z-score 계산 (하위 16% 저공비행 탐지용)
         mean_alt = df_planes['baro_altitude'].mean()
         std_alt = df_planes['baro_altitude'].std()
-        df_planes['zscore_altitude'] = (df_planes['baro_altitude'] - mean_alt) / std_alt
+        # 모든 비행기 고도가 같아 표준편차가 0일 때 발생하는 오류 방지
+        if std_alt > 0:
+            df_planes['zscore_altitude'] = (df_planes['baro_altitude'] - mean_alt) / std_alt
+        else:
+            df_planes['zscore_altitude'] = 0
         
-        # [기능 1-1] 비행기 아이콘과 회전 각도 준비하기
-        # 빈 방향 데이터(NaN)는 0도로 채워줍니다.
+        # [기능 1-1 에러 수정] 텍스트 레이어 글꼴 에러 방지를 위해 기본 기호(^) 사용
         df_planes['true_track'] = df_planes['true_track'].fillna(0)
-        # 지도에 그릴 비행기 이모지 생성
-        df_planes['plane_icon'] = '✈'
-        # 비행기 이모지(✈)는 기본적으로 45도(우상단)를 바라보고 있어서, 실제 비행 방향에 맞추기 위해 45도를 빼줍니다.
-        df_planes['icon_angle'] = df_planes['true_track'] - 45
+        df_planes['plane_icon'] = '^'
+        # ^ 모양 기호는 처음부터 0도(북쪽)를 바라보고 있으므로 빼기 계산 없이 각도를 그대로 적용합니다.
+        df_planes['icon_angle'] = df_planes['true_track']
         
         st.metric(label="현재 한반도 상공 비행기 수", value=f"{len(df_planes)} 대")
         
@@ -96,14 +97,14 @@ if df_planes is not None:
                 pitch=0
             )
             
-            # ScatterplotLayer에서 TextLayer로 변경하여 비행기 모양을 띄웁니다!
+            # TextLayer를 활용하여 비행기 방향을 화살표 기호(^)로 시각화
             layer = pdk.Layer(
                 "TextLayer",
                 df_planes,
                 get_position="[longitude, latitude]",
                 get_text="plane_icon",
-                get_size=25, # 비행기 크기
-                get_angle="icon_angle", # 계산해둔 각도대로 비행기를 회전시킵니다.
+                get_size=20,
+                get_angle="icon_angle",
                 get_color="zscore_altitude <= -1 ? [255, 0, 0, 200] : [30, 144, 255, 200]", 
                 pickable=True,
                 opacity=1.0
@@ -124,7 +125,6 @@ if df_planes is not None:
         st.info("현재 해당 구역 상공에 탐지된 비행기가 없습니다.")
 
 # --- [4] 자동 새로고침 실행 ---
-# 화면을 다 그린 후, 맨 마지막에 실행됩니다.
 if auto_refresh:
-    time.sleep(10) # 10초를 기다립니다.
-    st.rerun()     # 화면을 처음부터 다시 실행합니다!
+    time.sleep(10)
+    st.rerun()
