@@ -17,31 +17,29 @@ st.sidebar.title("🎮 관제탑 컨트롤러")
 if st.sidebar.button("🔄 즉시 새로고침"):
     st.rerun()
 
+# 익명 모드에서는 너무 잦은 새로고침 시 서버가 차단하므로 주의 메시지를 띄웁니다.
 auto_refresh = st.sidebar.checkbox("⏱️ 10초마다 자동 새로고침 켜기", value=False)
+if auto_refresh:
+    st.sidebar.warning("⚠️ 익명 모드에서는 너무 자주 새로고침하면 서버가 일시적으로 차단할 수 있습니다.")
+
 show_airports = st.sidebar.checkbox("📌 주요 공항 위치 표시하기", value=True)
 
 # --- [2] 데이터를 가져오는 함수 정의하기 ---
 def get_opensky_data():
-    client_id = "10725jaewoo-api-client"
-    client_secret = "xNlSQVEJF4zJGaAD53YZs6sHEzG2v1WX"
-    
-    token_url = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
-    token_data = {
-        "grant_type": "client_credentials",
-        "client_id": client_id,
-        "client_secret": client_secret
-    }
-    
+    # 🌟 [보안 업데이트] 아이디, 비밀번호, 토큰 발급 코드를 싹 다 지우고 익명 접속으로 변경!
     try:
-        token_response = requests.post(token_url, data=token_data, timeout=30)
-        token_response.raise_for_status() 
-        access_token = token_response.json()["access_token"]
-        
+        # 익명 전용 OpenSky API 주소 (인증서 헤더가 필요 없습니다)
         api_url = "https://opensky-network.org/api/states/all"
-        headers = {"Authorization": f"Bearer {access_token}"}
         params = {"lamin": 33.0, "lomin": 124.0, "lamax": 39.0, "lomax": 132.0}
         
-        data_response = requests.get(api_url, headers=headers, params=params, timeout=30)
+        # 바로 데이터 요청하기
+        data_response = requests.get(api_url, params=params, timeout=30)
+        
+        # 만약 너무 자주 요청해서 차단당했다면 친절하게 안내창 띄우기
+        if data_response.status_code == 429:
+            st.error("🛑 OpenSky 서버가 너무 바쁩니다! (익명 요청 횟수 초과) 1~2분 뒤에 새로고침 해주세요.")
+            return pd.DataFrame()
+            
         data_response.raise_for_status()
         raw_data = data_response.json()
         
@@ -96,7 +94,7 @@ if df_planes is not None:
                 pitch=0
             )
             
-            # 비행기 표시 레이어 (z-score 기준 -3.0 고정)
+            # 비행기 표시 레이어
             layers = [
                 pdk.Layer(
                     "TextLayer",
@@ -106,16 +104,14 @@ if df_planes is not None:
                     get_size=35,
                     font_weight="'bold'",
                     get_angle="icon_angle",
-                    # 정확히 z-score가 -3 이하일 때만 빨간색, 평소에는 파란색으로 매핑
                     get_color="zscore_altitude <= -3.0 ? [255, 0, 0, 220] : [30, 144, 255, 220]", 
                     pickable=True,
                     opacity=1.0
                 )
             ]
             
-            # 주요 공항 표시 기능 활성화 시 레이어 추가
+            # 주요 공항 표시 기능
             if show_airports:
-                # 폰트 깨짐 및 Missing character 오류를 방지하기 위해 순수 영문(ASCII 기호) 코드로 전면 수정!
                 airports_data = [
                     {"name": "ICN", "lng": 126.4392, "lat": 37.4692},
                     {"name": "GMP", "lng": 126.8026, "lat": 37.5583},
@@ -124,7 +120,6 @@ if df_planes is not None:
                 ]
                 df_airports = pd.DataFrame(airports_data)
                 
-                # 공항 노란색 점 레이어
                 airport_spots = pdk.Layer(
                     "ScatterplotLayer",
                     df_airports,
@@ -133,7 +128,6 @@ if df_planes is not None:
                     get_radius=8000,
                     pickable=True
                 )
-                # 공항 코드 텍스트 레이어 (영어 대문자만 사용하므로 브라우저 에러가 원천 차단됩니다)
                 airport_labels = pdk.Layer(
                     "TextLayer",
                     df_airports,
@@ -147,7 +141,6 @@ if df_planes is not None:
                 )
                 layers.extend([airport_spots, airport_labels])
             
-            # 툴팁 HTML 내부의 한글을 영어로 변경하여 지도 컴포넌트와의 충돌을 막아줍니다.
             st.pydeck_chart(pdk.Deck(
                 layers=layers,
                 initial_view_state=view_state,
